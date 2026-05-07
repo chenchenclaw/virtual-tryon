@@ -1,4 +1,4 @@
-import { openai } from '@/lib/openai';
+import { openaiImage } from '@/lib/openai';
 import { prisma } from '@/lib/prisma';
 import { buildSystemPrompt, buildUserPrompt } from './prompt-builder';
 
@@ -20,6 +20,7 @@ interface TryonResult {
 
 /**
  * 执行虚拟试穿生成
+ * 利用 hfsyapi 的 reference_images 特性，直接传入用户照片和服装图作为参考
  */
 export async function executeTryon(request: TryonRequest): Promise<TryonResult> {
   const startTime = Date.now();
@@ -50,8 +51,7 @@ export async function executeTryon(request: TryonRequest): Promise<TryonResult> 
   });
 
   try {
-    // 4. 组装 Prompt
-    const systemPrompt = buildSystemPrompt();
+    // 4. 组装 Prompt（纯文字描述，不含图片）
     const userPrompt = buildUserPrompt({
       bodyProfile: {
         heightCm: bodyProfile.heightCm ? Number(bodyProfile.heightCm) : null,
@@ -78,28 +78,63 @@ export async function executeTryon(request: TryonRequest): Promise<TryonResult> 
       quality: request.quality,
     });
 
-    // 5. 调用 OpenAI API 生成图片
-    // 注意：GPT Image API 实际调用方式需要根据最新 API 文档调整
-    // 这里使用 images.generate 作为示例
-    const response = await openai.images.generate({
-      model: 'gpt-image-1',
-      prompt: `${systemPrompt}\n\n${userPrompt}`,
-      n: 1,
-      size: request.quality === 'high' ? '1024x1536' : '1024x1024',
-      quality: request.quality === 'high' ? 'high' : 'standard',
-    });
+    // 5. 收集参考图片（用户全身照 + 各服装图片）
+    const referenceImages: string[] = [];
 
-    const resultUrl = response.data?.[0]?.url || '';
+    // 用户正面照
+    if (bodyProfile.frontPhotoUrl) {
+      referenceImages.push(bodyProfile.frontPhotoUrl);
+    }
+
+    // 服装图片（最多凑到 4 张，含用户照共 4 张上限）
+    for (const g of garments) {
+      if (referenceImages.length >= 4) break;
+      const imgUrl = g.processedImage || g.originalImage;
+      if (imgUrl) referenceImages.push(imgUrl);
+    }
+
+    // 6. 调用 hfsyapi 生图 API
+    // 使用自定义 fetch 调用，因为 hfsyapi 的参数格式（reference_images）
+    // 与标准 OpenAI SDK 不完全兼容
+    const model = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2pro';
+    const size = request.quality === 'high' ? '2048x2048' : '1024x1024';
+
+    const apiResponse = await fetch(
+      `${process.env.OPENAI_IMAGE_BASE_URL}/images/generations`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_IMAGE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          n: 1,
+          size,
+          prompt: userPrompt,
+          reference_images: referenceImages.length > 0 ? referenceImages : undefined,
+          response_format: 'b64_json', // hfsyapi: 传 b64_json 返回 url
+        }),
+      }
+    );
+
+    if (!apiResponse.ok) {
+      const errText = await apiResponse.text();
+      throw new Error(`生图 API 错误 (${apiResponse.status}): ${errText}`);
+    }
+
+    const apiData = await apiResponse.json();
+    const resultUrl = apiData.data?.[0]?.url || '';
     const processingTime = Date.now() - startTime;
 
-    // 6. 更新任务状态
+    // 7. 更新任务状态
     await prisma.tryonTask.update({
       where: { id: task.id },
       data: {
         status: 'completed',
         resultUrls: resultUrl ? [resultUrl] : [],
         promptUsed: userPrompt,
-        apiModel: 'gpt-image-1',
+        apiModel: model,
         apiCallsCount: 1,
         processingTimeMs: processingTime,
         completedAt: new Date(),
@@ -112,7 +147,6 @@ export async function executeTryon(request: TryonRequest): Promise<TryonResult> 
       resultUrls: resultUrl ? [resultUrl] : [],
     };
   } catch (error) {
-    // 更新任务为失败状态
     await prisma.tryonTask.update({
       where: { id: task.id },
       data: {
