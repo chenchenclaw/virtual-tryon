@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(uuid()) @db.Uuid
+  phone            String?  @unique
+  email            String?  @unique
+  passwordHash     String?
+  nickname         String?
+  avatarUrl        String?
+  gender           String?
+  birthYear        Int?
+  stylePreferences Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  bodyProfiles      BodyProfile[]
+  garments          Garment[]
+  sizeRecommendations SizeRecommendation[]
+  tryonTasks        TryonTask[]
+  outfits           Outfit[]
+  posts             Post[]
+}
+
+model BodyProfile {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  heightCm        Decimal? @db.Decimal(5, 1)
+  weightKg        Decimal? @db.Decimal(5, 1)
+  shoulderWidth   Decimal? @db.Decimal(5, 1)
+  chestCirc       Decimal? @db.Decimal(5, 1)
+  waistCirc       Decimal? @db.Decimal(5, 1)
+  hipCirc         Decimal? @db.Decimal(5, 1)
+  armLength       Decimal? @db.Decimal(5, 1)
+  legLength       Decimal? @db.Decimal(5, 1)
+  bodyType        String?
+  frontPhotoUrl   String?
+  sidePhotoUrl    String?
+  bodyDescription String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sizeRecommendations SizeRecommendation[]
+  tryonTasks          TryonTask[]
+
+  @@index([userId])
+}
+
+model Garment {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  name            String?
+  category        String   @db.VarChar(30)
+  subCategory     String?  @db.VarChar(30)
+  originalImage   String?
+  processedImage  String?
+  colorPrimary    String?  @db.VarChar(30)
+  colorSecondary  String?  @db.VarChar(30)
+  material        String?  @db.VarChar(30)
+  pattern         String?  @db.VarChar(30)
+  fitType         String?  @db.VarChar(20)
+  styleTags       String[]
+  seasonTags      String[]
+  brand           String?  @db.VarChar(50)
+  aiDescription   String?
+  isPublic        Boolean  @default(false)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sizeCharts          SizeChart[]
+  sizeRecommendations SizeRecommendation[]
+
+  @@index([userId])
+  @@index([category])
+}
+
+model SizeChart {
+  id                  String   @id @default(uuid()) @db.Uuid
+  garmentId           String   @db.Uuid
+  sizeSystem          String?  @db.VarChar(20)
+  sizeLabel           String   @db.VarChar(20)
+  chest               Decimal? @db.Decimal(5, 1)
+  shoulder            Decimal? @db.Decimal(5, 1)
+  sleeveLength        Decimal? @db.Decimal(5, 1)
+  totalLength         Decimal? @db.Decimal(5, 1)
+  waistCirc           Decimal? @db.Decimal(5, 1)
+  hipCirc             Decimal? @db.Decimal(5, 1)
+  inseam              Decimal? @db.Decimal(5, 1)
+  thighCirc           Decimal? @db.Decimal(5, 1)
+  frontRise           Decimal? @db.Decimal(5, 1)
+  footLength          Decimal? @db.Decimal(5, 1)
+  footWidth           Decimal? @db.Decimal(5, 1)
+  customMeasurements  Json?
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+
+  garment Garment @relation(fields: [garmentId], references: [id], onDelete: Cascade)
+
+  @@index([garmentId])
+}
+
+model SizeRecommendation {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @db.Uuid
+  bodyProfileId    String   @db.Uuid
+  garmentId        String   @db.Uuid
+  recommendedSize  String?
+  matchScore       Decimal? @db.Decimal(3, 2)
+  fitAnalysis      Json?
+  alternativeSizes Json?
+  createdAt        DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bodyProfile BodyProfile  @relation(fields: [bodyProfileId], references: [id], onDelete: Cascade)
+  garment     Garment      @relation(fields: [garmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([garmentId])
+}
+
+model TryonTask {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  bodyProfileId    String?   @db.Uuid
+  garmentIds       String[]
+  scene            String?   @db.VarChar(30)
+  poseType         String?   @db.VarChar(30)
+  status           String    @default("pending") @db.VarChar(20)
+  resultUrls       String[]
+  promptUsed       String?
+  apiModel         String?   @db.VarChar(50)
+  apiCallsCount    Int       @default(0)
+  processingTimeMs Int?
+  qualityScore     Decimal?  @db.Decimal(3, 2)
+  retryCount       Int       @default(0)
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bodyProfile BodyProfile? @relation(fields: [bodyProfileId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Outfit {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  name        String?
+  description String?
+  garmentIds  String[]
+  tryonTaskId String?  @db.Uuid
+  coverImage  String?
+  scene       String?  @db.VarChar(30)
+  tags        String[]
+  isPublic    Boolean  @default(false)
+  likeCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts Post[]
+
+  @@index([userId])
+  @@index([isPublic])
+}
+
+model Post {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  outfitId    String?  @db.Uuid
+  content     String?
+  images      String[]
+  likeCount   Int      @default(0)
+  commentCount Int     @default(0)
+  isFeatured  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outfit Outfit? @relation(fields: [outfitId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+}
