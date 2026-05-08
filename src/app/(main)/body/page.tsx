@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 const FIELDS = [
   { key: 'heightCm', label: '身高', unit: 'cm', placeholder: '170' },
@@ -15,11 +15,39 @@ const FIELDS = [
 
 export default function BodyPage() {
   const [form, setForm] = useState<Record<string, string>>({});
+  const [frontPhoto, setFrontPhoto] = useState<string>('');
+  const [sidePhoto, setSidePhoto] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const frontInputRef = useRef<HTMLInputElement>(null);
+  const sideInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleUpload = async (file: File, type: 'front' | 'side') => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'body');
+
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (data.success) {
+        if (type === 'front') setFrontPhoto(data.data.url);
+        else setSidePhoto(data.data.url);
+      } else {
+        setMessage(data.error || '上传失败');
+      }
+    } catch {
+      setMessage('上传失败');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,6 +60,8 @@ export default function BodyPage() {
       FIELDS.forEach((f) => {
         if (form[f.key]) data[f.key] = parseFloat(form[f.key]);
       });
+      if (frontPhoto) data.frontPhotoUrl = frontPhoto;
+      if (sidePhoto) data.sidePhotoUrl = sidePhoto;
 
       const res = await fetch('/api/body', {
         method: 'POST',
@@ -79,12 +109,50 @@ export default function BodyPage() {
           ))}
         </div>
 
+        {/* 正面照上传 */}
         <div>
           <label className="mb-1 block text-sm font-medium">全身正面照</label>
-          <div className="rounded-md border-2 border-dashed p-8 text-center text-sm text-muted-foreground">
-            <p>点击或拖拽上传正面全身照</p>
-            <p className="mt-1 text-xs">建议纯色背景、自然光线、双手自然下垂</p>
-            <input type="file" accept="image/*" className="hidden" />
+          <input
+            ref={frontInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0], 'front')}
+          />
+          <div
+            onClick={() => frontInputRef.current?.click()}
+            className="cursor-pointer rounded-md border-2 border-dashed p-6 text-center text-sm text-muted-foreground hover:border-primary"
+          >
+            {frontPhoto ? (
+              <img src={frontPhoto} alt="正面照" className="mx-auto max-h-48 rounded object-contain" />
+            ) : (
+              <>
+                <p>{uploading ? '上传中...' : '点击上传正面全身照'}</p>
+                <p className="mt-1 text-xs">建议纯色背景、自然光线、双手自然下垂</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 侧面照上传 */}
+        <div>
+          <label className="mb-1 block text-sm font-medium">侧面照（可选）</label>
+          <input
+            ref={sideInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0], 'side')}
+          />
+          <div
+            onClick={() => sideInputRef.current?.click()}
+            className="cursor-pointer rounded-md border-2 border-dashed p-6 text-center text-sm text-muted-foreground hover:border-primary"
+          >
+            {sidePhoto ? (
+              <img src={sidePhoto} alt="侧面照" className="mx-auto max-h-48 rounded object-contain" />
+            ) : (
+              <p>{uploading ? '上传中...' : '点击上传侧面照'}</p>
+            )}
           </div>
         </div>
 

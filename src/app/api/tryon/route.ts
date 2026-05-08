@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import { apiSuccess, apiError } from '@/lib/utils';
+import { executeTryon, getTaskStatus } from '@/services/tryon.service';
 
 // POST: 创建试穿任务
 export async function POST(req: NextRequest) {
@@ -9,9 +10,9 @@ export async function POST(req: NextRequest) {
   if (!user) return apiError('未登录', 401);
 
   try {
-    const { bodyProfileId, garments, scene, pose, quality } = await req.json();
+    const { bodyProfileId, garmentIds, scene, pose, quality } = await req.json();
 
-    if (!garments || !Array.isArray(garments) || garments.length === 0) {
+    if (!garmentIds || !Array.isArray(garmentIds) || garmentIds.length === 0) {
       return apiError('请选择至少一件服装');
     }
 
@@ -24,48 +25,39 @@ export async function POST(req: NextRequest) {
       return apiError('请先创建体型档案');
     }
 
-    // 获取服装信息
-    const garmentIds = garments.map((g: { garment_id?: string; garmentId?: string }) => g.garment_id || g.garmentId);
-    const dbGarments = await prisma.garment.findMany({
-      where: { id: { in: garmentIds }, userId: user.id },
-      include: { sizeCharts: true },
+    // 调用试穿服务
+    const result = await executeTryon({
+      userId: user.id,
+      bodyProfileId: bodyProfile.id,
+      garmentIds,
+      scene: scene || 'studio',
+      pose: pose || 'front_standing',
+      quality: quality || 'high',
     });
 
-    if (dbGarments.length === 0) {
-      return apiError('未找到指定服装');
-    }
-
-    // 创建试穿任务
-    const task = await prisma.tryonTask.create({
-      data: {
-        userId: user.id,
-        bodyProfileId: bodyProfile.id,
-        garmentIds,
-        scene: scene || 'studio',
-        poseType: pose || 'front_standing',
-        status: 'pending',
-      },
-    });
-
-    // TODO: 将任务推入 BullMQ 队列，由 worker 调用 OpenAI API 生成试穿图
-    // 暂时直接返回任务信息，后续实现 worker 时补充
-
-    return apiSuccess({
-      task_id: task.id,
-      status: task.status,
-      estimated_time_seconds: 20,
-    });
+    return apiSuccess(result);
   } catch (error) {
     console.error('Tryon error:', error);
-    return apiError('创建试穿任务失败', 500);
+    return apiError(error instanceof Error ? error.message : '创建试穿任务失败', 500);
   }
 }
 
-// GET: 获取试穿历史
+// GET: 查询任务状态或获取试穿历史
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return apiError('未登录', 401);
 
+  const { searchParams } = new URL(req.url);
+  const taskId = searchParams.get('id');
+
+  if (taskId) {
+    // 查询单个任务状态
+    const status = await getTaskStatus(taskId, user.id);
+    if (!status) return apiError('任务不存在', 404);
+    return apiSuccess(status);
+  }
+
+  // 获取试穿历史
   const tasks = await prisma.tryonTask.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: 'desc' },
