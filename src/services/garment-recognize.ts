@@ -57,7 +57,7 @@ const FIT_MAP: Record<string, string> = {
  */
 export async function recognizeGarment(imageUrl: string): Promise<RecognizedAttributes> {
   const response = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || 'mimo-v2.5-pro',
+    model: process.env.OPENAI_MODEL || 'mimo-v2.5',
     max_tokens: 800,
     messages: [
       {

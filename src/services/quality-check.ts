@@ -16,7 +16,7 @@ export async function qualityCheck(
 ): Promise<QualityResult> {
   try {
     const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'mimo-v2.5-pro',
+      model: process.env.OPENAI_MODEL || 'mimo-v2.5',
       max_tokens: 500,
       messages: [
         {
