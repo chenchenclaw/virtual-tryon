@@ -53,11 +53,11 @@ const FIT_MAP: Record<string, string> = {
 };
 
 /**
- * 调用 GPT-4o Vision 识别服装图片属性
+ * 调用语言模型 Vision 识别服装图片属性
  */
 export async function recognizeGarment(imageUrl: string): Promise<RecognizedAttributes> {
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: process.env.OPENAI_MODEL || 'mimo-v2.5-pro',
     max_tokens: 800,
     messages: [
       {

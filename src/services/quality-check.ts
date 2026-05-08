@@ -8,7 +8,7 @@ interface QualityResult {
 
 /**
  * 质量自检：对比用户原始照片和 AI 生成的试穿效果图
- * 通过 GPT-4o Vision 评估生成质量
+ * 通过语言模型评估生成质量
  */
 export async function qualityCheck(
   userPhotoUrl: string,
@@ -16,7 +16,7 @@ export async function qualityCheck(
 ): Promise<QualityResult> {
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: process.env.OPENAI_MODEL || 'mimo-v2.5-pro',
       max_tokens: 500,
       messages: [
         {

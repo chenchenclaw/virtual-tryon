@@ -5,7 +5,7 @@ const globalForOpenAI = globalThis as unknown as {
   openaiImage: OpenAI | undefined;
 };
 
-/** 语言模型客户端（gpt-4o 等：服装识别、体型描述、质量自检） */
+/** 语言模型客户端（mimo-v2.5-pro 等：服装识别、体型描述、质量自检） */
 export const openai =
   globalForOpenAI.openai ??
   new OpenAI({
