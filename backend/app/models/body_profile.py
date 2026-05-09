@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, DECIMAL
+from sqlalchemy import DECIMAL
 from app.core.database import Base
 
 class BodyProfile(Base):
