@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON
-from sqlalchemy.dialects.postgresql import DECIMAL
+from sqlalchemy import DECIMAL
 from app.core.database import Base
 
 class TryonTask(Base):

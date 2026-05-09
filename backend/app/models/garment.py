@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, JSON, Integer
-from sqlalchemy.dialects.postgresql import DECIMAL
+from sqlalchemy import DECIMAL
 from app.core.database import Base
 
 class Garment(Base):
